@@ -1,113 +1,174 @@
-import Image from 'next/image'
+"use client";
 
-export default function Home() {
+import { derDecode, proveMembership, verifyMembership } from "babyjubjub-ecdsa";
+import React, { useState } from "react";
+
+function App() {
+  const [publicKeys, setPublicKeys] = useState<string[]>([
+    "041941f5abe4f903af965d707182b688bd1fa725fd2cbc648fc435feb42a3794593275a2e9b4ad4bc0d2f3ecc8d23e3cf89da889d7aa35ce33f132d87b5bb5c393",
+    "049ae9f2ec6a4db43f0e081a436f885b0d3f5753a45b00d2f2e3da38956848c4ff0205d89e14a2e36976bfe033407dbce6b48261d84d201277de0c3b82f08ddb09",
+    "041052d6da0c3d7248e39e08912e2daa53c4e54cd9f2d96e3702fa15e77b199a501cd835bbddcc77134dc59dbbde2aa702183a68c90877906a31536eef972fac36",
+    "044d9d03f3266f24777ac488f04ec579e1c4bea984398c9b98d99a9e31bc75ef0f13a19471a7297a6f2bf0126ed93d4c55b6e98ec286203e3d761c61922e3a4cda",
+  ]);
+  const [newKey, setNewKey] = useState("");
+  const [index, setIndex] = useState("2");
+  const [signature, setSignature] = useState(
+    "30440220017705D8D42EA7B179DCB1BB9ED1B37EB0F9A11DA2990E1B85C78D6C2132C46A0220021D258DFA097C255111C42DF04FC80572BE5E2173696FFF05A9B190A7C57FFA"
+  );
+  const [message, setMessage] = useState(
+    "228200042270416259090871054572513508030"
+  );
+  const [proof, setProof] = useState<string>();
+
+  const handleAddKey = () => {
+    setPublicKeys([...publicKeys, newKey]);
+    setNewKey("");
+  };
+
+  const handleDeleteKey = (keyIndex: number) => {
+    const updatedKeys = [...publicKeys];
+    updatedKeys.splice(keyIndex, 1);
+    setPublicKeys(updatedKeys);
+  };
+
+  const handleGenerateProof = async () => {
+    if (!publicKeys.length) {
+      alert("Must add at least one public key!");
+      return;
+    }
+    if (!index) {
+      alert("Must enter a list index!");
+      return;
+    }
+    if (!/^-?\d+$/.test(index)) {
+      alert("Index must be a number!");
+      return;
+    }
+    if (!signature) {
+      alert("Must enter a signature!");
+      return;
+    }
+    if (!message) {
+      alert("Must enter a message!");
+      return;
+    }
+    if (!/^-?\d+$/.test(message)) {
+      alert("Message must be a number for now!");
+      return;
+    }
+
+    alert("Generating proof...");
+
+    console.time("Proof Generation");
+
+    const sig = derDecode(signature);
+    const pubKeyIndex = Number(index);
+    const msgHash = BigInt(message);
+    const proof = await proveMembership(sig, publicKeys, pubKeyIndex, msgHash);
+
+    console.timeEnd("Proof Generation");
+
+    alert("Proof generated!");
+
+    setProof(JSON.stringify(proof));
+  };
+
+  const handleVerifyProof = async () => {
+    if (!proof) {
+      alert("Must generate a proof first!");
+      return;
+    }
+
+    const zkp = JSON.parse(proof!);
+    const verified = await verifyMembership(zkp);
+
+    alert(`Verified: ${verified}`);
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="App p-8 bg-gray-100 min-h-screen">
+      <h1 className="text-2xl font-bold mb-6">BabyJubJub ECDSA Demo</h1>
+
+      <div className="mb-6">
+        <h2 className="text-xl mb-2">Add a new public key</h2>
+        <div className="flex">
+          <input
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value)}
+            placeholder="Enter a public key"
+            className="p-2 border rounded mr-2 flex-grow"
+          />
+          <button
+            onClick={handleAddKey}
+            className="bg-blue-500 text-white px-4 py-2 rounded"
           >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+            Add Key
+          </button>
         </div>
       </div>
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
+      <div className="mb-6">
+        <h2 className="text-xl mb-2">Public Keys</h2>
+        <ul className="bg-white p-4 rounded border">
+          {publicKeys.map((key, idx) => (
+            <li key={idx} className="flex justify-between items-center mb-2">
+              {key}
+              <button
+                onClick={() => handleDeleteKey(idx)}
+                className="bg-red-500 text-white px-2 py-1 rounded"
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
 
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
+      <div>
+        <h2 className="text-xl mb-2">Submit Proof</h2>
+        <div className="mb-4">
+          <input
+            value={index}
+            onChange={(e) => setIndex(e.target.value)}
+            placeholder="Enter list index"
+            className="p-2 border rounded w-full mb-2"
+          />
+          <input
+            value={signature}
+            onChange={(e) => setSignature(e.target.value)}
+            placeholder="Enter signature"
+            className="p-2 border rounded w-full mb-2"
+          />
+          <input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Enter message"
+            className="p-2 border rounded w-full"
+          />
+        </div>
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+        <div className="mb-4">
+          <h3 className="text-lg mb-2">Proof</h3>
+          <div className="bg-white p-4 rounded border">{proof}</div>
+        </div>
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+        <div>
+          <button
+            onClick={handleGenerateProof}
+            className="bg-green-500 text-white px-4 py-2 rounded mr-2"
+          >
+            Generate Proof
+          </button>
+          <button
+            onClick={handleVerifyProof}
+            className="bg-yellow-500 text-white px-4 py-2 rounded"
+          >
+            Verify Proof
+          </button>
+        </div>
       </div>
-    </main>
-  )
+    </div>
+  );
 }
+
+export default App;
