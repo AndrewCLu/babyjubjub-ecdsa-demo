@@ -825,10 +825,10 @@ b4a@^1.0.1:
   resolved "https://registry.yarnpkg.com/b4a/-/b4a-1.6.4.tgz#ef1c1422cae5ce6535ec191baeed7567443f36c9"
   integrity sha512-fpWrvyVHEKyeEvbKZTVOeZF3VSKKWtJxFIxX/jaVPf+cLbGUSitjb49pHLqPV2BUNNZ0LcoeEGfE/YCpyDYHIw==
 
-babyjubjub-ecdsa@^1.0.2:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/babyjubjub-ecdsa/-/babyjubjub-ecdsa-1.0.2.tgz#1dc4080f82a46d60181afafb35e707c2bd783496"
-  integrity sha512-2H86D50x1SGWTlchnnHtjf8nSz7RBtJF7xr5sbhHSK3nSS+7ejDVI7eICBBRO5pk4B3GVnTpV33I00j1qupkYw==
+babyjubjub-ecdsa@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/babyjubjub-ecdsa/-/babyjubjub-ecdsa-1.0.3.tgz#ce6bb989ac4882cf53ae21f0d54f5efdde29370d"
+  integrity sha512-Y9w8+7NFS2HHB9370HX7oxXuAvaDVI3LZ1u/ONqGE94XnbKjTovI5WuCTqSwE05MRHbw3W91//6bkCmex+gZJg==
   dependencies:
     circomlibjs "^0.1.7"
     elliptic "^6.5.4"
