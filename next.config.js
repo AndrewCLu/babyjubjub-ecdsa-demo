@@ -1,11 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["babyjubjub-ecdsa"],
-  webpack: (config, options) => {
-    // if (!options.isServer) {
-    //   config.resolve.fallback = { fs: false, readline: false };
-    // }
-    // config.experiments = { asyncWebAssembly: true, layers: true };
+  webpack: (config) => {
     config.resolve.fallback = { fs: false, readline: false };
     return config;
   },

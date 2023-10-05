@@ -66,12 +66,11 @@ function App() {
     const msgHash = BigInt(message);
 
     const proof = await proveMembership(sig, publicKeys, pubKeyIndex, msgHash);
+    setProof(JSON.stringify(proof));
 
     console.timeEnd("Proof Generation");
 
     alert("Proof generated!");
-
-    setProof(JSON.stringify(proof));
   };
 
   const handleBackendGenerateProof = async () => {
@@ -104,28 +103,26 @@ function App() {
 
     console.time("Proof Generation");
 
-    await fetch("/api/prove", {
+    const response = await fetch("/api/prove", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ signature, index, message, publicKeys }),
-    }).then(async (response) => {
-      const data = await response.json();
-      if (response.status === 200) {
-        setProof(JSON.stringify(data));
-      } else {
-        if (data.error) {
-          console.error(data.error);
-        }
-      }
     });
+    const json = await response.json();
+    if (response.status === 200) {
+      const proofString = JSON.stringify(json);
+      setProof(proofString);
+    } else {
+      if (json.error) {
+        console.error(json.error);
+      }
+    }
 
     console.timeEnd("Proof Generation");
 
     alert("Proof generated!");
-
-    setProof(JSON.stringify(proof));
   };
 
   const handleClientVerifyProof = async () => {
@@ -146,24 +143,31 @@ function App() {
       return;
     }
 
+    console.time("Verification");
+
     const zkp = JSON.parse(proof!);
 
-    await fetch("/api/verify", {
+    const response = await fetch("/api/verify", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ zkp }),
-    }).then(async (response) => {
-      const data = await response.json();
-      if (response.status === 200) {
-        alert(`Verified: ${data.verified}`);
-      } else {
-        if (data.error) {
-          console.error(data.error);
-        }
-      }
     });
+    const json = await response.json();
+    if (response.status === 200) {
+      const verified = json.verified;
+
+      console.timeEnd("Verification");
+
+      alert(`Verified: ${verified}`);
+    } else {
+      console.timeEnd("Verification");
+
+      if (json.error) {
+        console.error(json.error);
+      }
+    }
   };
 
   return (
