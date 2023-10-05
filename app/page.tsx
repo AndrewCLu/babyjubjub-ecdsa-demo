@@ -31,7 +31,7 @@ function App() {
     setPublicKeys(updatedKeys);
   };
 
-  const handleGenerateProof = async () => {
+  const handleClientGenerateProof = async () => {
     if (!publicKeys.length) {
       alert("Must add at least one public key!");
       return;
@@ -64,6 +64,7 @@ function App() {
     const sig = derDecode(signature);
     const pubKeyIndex = Number(index);
     const msgHash = BigInt(message);
+
     const proof = await proveMembership(sig, publicKeys, pubKeyIndex, msgHash);
 
     console.timeEnd("Proof Generation");
@@ -73,7 +74,61 @@ function App() {
     setProof(JSON.stringify(proof));
   };
 
-  const handleVerifyProof = async () => {
+  const handleBackendGenerateProof = async () => {
+    if (!publicKeys.length) {
+      alert("Must add at least one public key!");
+      return;
+    }
+    if (!index) {
+      alert("Must enter a list index!");
+      return;
+    }
+    if (!/^-?\d+$/.test(index)) {
+      alert("Index must be a number!");
+      return;
+    }
+    if (!signature) {
+      alert("Must enter a signature!");
+      return;
+    }
+    if (!message) {
+      alert("Must enter a message!");
+      return;
+    }
+    if (!/^-?\d+$/.test(message)) {
+      alert("Message must be a number for now!");
+      return;
+    }
+
+    alert("Generating proof...");
+
+    console.time("Proof Generation");
+
+    await fetch("/api/prove", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ signature, index, message, publicKeys }),
+    }).then(async (response) => {
+      const data = await response.json();
+      if (response.status === 200) {
+        setProof(JSON.stringify(data));
+      } else {
+        if (data.error) {
+          console.error(data.error);
+        }
+      }
+    });
+
+    console.timeEnd("Proof Generation");
+
+    alert("Proof generated!");
+
+    setProof(JSON.stringify(proof));
+  };
+
+  const handleClientVerifyProof = async () => {
     if (!proof) {
       alert("Must generate a proof first!");
       return;
@@ -83,6 +138,32 @@ function App() {
     const verified = await verifyMembership(zkp);
 
     alert(`Verified: ${verified}`);
+  };
+
+  const handleBackendVerifyProof = async () => {
+    if (!proof) {
+      alert("Must generate a proof first!");
+      return;
+    }
+
+    const zkp = JSON.parse(proof!);
+
+    await fetch("/api/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ zkp }),
+    }).then(async (response) => {
+      const data = await response.json();
+      if (response.status === 200) {
+        alert(`Verified: ${data.verified}`);
+      } else {
+        if (data.error) {
+          console.error(data.error);
+        }
+      }
+    });
   };
 
   return (
@@ -154,16 +235,28 @@ function App() {
 
         <div>
           <button
-            onClick={handleGenerateProof}
+            onClick={handleClientGenerateProof}
             className="bg-green-500 text-white px-4 py-2 rounded mr-2"
           >
-            Generate Proof
+            Generate Proof (Client)
           </button>
           <button
-            onClick={handleVerifyProof}
-            className="bg-yellow-500 text-white px-4 py-2 rounded"
+            onClick={handleBackendGenerateProof}
+            className="bg-green-500 text-white px-4 py-2 rounded mr-2"
           >
-            Verify Proof
+            Generate Proof (Backend)
+          </button>
+          <button
+            onClick={handleClientVerifyProof}
+            className="bg-yellow-500 text-white px-4 py-2 rounded mr-2"
+          >
+            Verify Proof (Client)
+          </button>
+          <button
+            onClick={handleBackendVerifyProof}
+            className="bg-yellow-500 text-white px-4 py-2 rounded mr-2"
+          >
+            Verify Proof (Backend)
           </button>
         </div>
       </div>
