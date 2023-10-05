@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const sig = derDecode(signature);
     const pubKeyIndex = Number(index);
     const msgHash = BigInt(message);
-    const pathToCircuits = path.resolve(process.cwd(), "./app/api/prove") + "/";
+    const pathToCircuits = path.resolve(process.cwd(), "./app/api") + "/_";
 
     const proof = await proveMembership(
       sig,

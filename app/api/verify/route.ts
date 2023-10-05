@@ -11,8 +11,7 @@ export async function POST(request: Request) {
     const bodyArrayBuffer = await request.arrayBuffer();
     const bodyString = new TextDecoder().decode(bodyArrayBuffer);
     const { zkp } = JSON.parse(bodyString);
-    const pathToCircuits =
-      path.resolve(process.cwd(), "./app/api/verify") + "/";
+    const pathToCircuits = path.resolve(process.cwd(), "./app/api") + "/_";
 
     const verified = await verifyMembership(zkp, pathToCircuits);
 
