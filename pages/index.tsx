@@ -1,7 +1,17 @@
 "use client";
 
-import { derDecode, proveMembership, verifyMembership } from "babyjubjub-ecdsa";
 import React, { useState } from "react";
+// @ts-ignore
+import { buildPoseidonReference as buildPoseidon } from "circomlibjs";
+import {
+  derDecode,
+  deserializeEcdsaMembershipProof,
+  hexToBigInt,
+  proveMembership,
+  publicKeyFromString,
+  serializeEcdsaMembershipProof,
+  verifyMembership,
+} from "babyjubjub-ecdsa";
 
 function App() {
   const [publicKeys, setPublicKeys] = useState<string[]>([
@@ -11,13 +21,13 @@ function App() {
     "044d9d03f3266f24777ac488f04ec579e1c4bea984398c9b98d99a9e31bc75ef0f13a19471a7297a6f2bf0126ed93d4c55b6e98ec286203e3d761c61922e3a4cda",
   ]);
   const [newKey, setNewKey] = useState("");
-  const [index, setIndex] = useState("2");
+  const [index, setIndex] = useState<number>(2);
   const [signature, setSignature] = useState(
     "30440220017705D8D42EA7B179DCB1BB9ED1B37EB0F9A11DA2990E1B85C78D6C2132C46A0220021D258DFA097C255111C42DF04FC80572BE5E2173696FFF05A9B190A7C57FFA"
   );
-  const [message, setMessage] = useState(
-    "228200042270416259090871054572513508030"
-  );
+  const [message, setMessage] = useState("abadbabeabadbabeabadbabeabadbabe");
+  const [nullifierRandomness, setNullifierRandomness] = useState<number>(0);
+  const [cachePoseidon, setCachePoseidon] = useState<boolean>(false);
   const [proof, setProof] = useState<string>();
 
   const handleAddKey = () => {
@@ -36,14 +46,6 @@ function App() {
       alert("Must add at least one public key!");
       return;
     }
-    if (!index) {
-      alert("Must enter a list index!");
-      return;
-    }
-    if (!/^-?\d+$/.test(index)) {
-      alert("Index must be a number!");
-      return;
-    }
     if (!signature) {
       alert("Must enter a signature!");
       return;
@@ -52,25 +54,28 @@ function App() {
       alert("Must enter a message!");
       return;
     }
-    if (!/^-?\d+$/.test(message)) {
-      alert("Message must be a number for now!");
-      return;
-    }
 
-    alert("Generating proof...");
+    console.time("Build Poseidon");
+    const poseidon = cachePoseidon ? await buildPoseidon() : undefined;
+    console.timeEnd("Build Poseidon");
 
-    console.time("Proof Generation");
-
+    console.time("Client Membership Proof Generation");
     const sig = derDecode(signature);
-    const pubKeyIndex = Number(index);
-    const msgHash = BigInt(message);
+    const pubKeyPoints = publicKeys.map(publicKeyFromString);
+    const msgHash = hexToBigInt(message);
 
-    const proof = await proveMembership(sig, publicKeys, pubKeyIndex, msgHash);
-    setProof(JSON.stringify(proof));
+    const proof = await proveMembership(
+      sig,
+      pubKeyPoints,
+      index,
+      msgHash,
+      BigInt(nullifierRandomness),
+      undefined,
+      poseidon
+    );
 
-    console.timeEnd("Proof Generation");
-
-    alert("Proof generated!");
+    setProof(serializeEcdsaMembershipProof(proof));
+    console.timeEnd("Client Membership Proof Generation");
   };
 
   const handleBackendGenerateProof = async () => {
@@ -78,14 +83,6 @@ function App() {
       alert("Must add at least one public key!");
       return;
     }
-    if (!index) {
-      alert("Must enter a list index!");
-      return;
-    }
-    if (!/^-?\d+$/.test(index)) {
-      alert("Index must be a number!");
-      return;
-    }
     if (!signature) {
       alert("Must enter a signature!");
       return;
@@ -94,35 +91,31 @@ function App() {
       alert("Must enter a message!");
       return;
     }
-    if (!/^-?\d+$/.test(message)) {
-      alert("Message must be a number for now!");
-      return;
-    }
 
-    alert("Generating proof...");
-
-    console.time("Proof Generation");
-
+    console.time("Server Membership Proof Generation");
     const response = await fetch("/api/prove", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ signature, index, message, publicKeys }),
+      body: JSON.stringify({
+        signature,
+        index,
+        message,
+        publicKeys,
+        nullifierRandomness,
+        cachePoseidon,
+      }),
     });
     const json = await response.json();
     if (response.status === 200) {
-      const proofString = JSON.stringify(json);
-      setProof(proofString);
+      setProof(json.proof);
     } else {
       if (json.error) {
         console.error(json.error);
       }
     }
-
-    console.timeEnd("Proof Generation");
-
-    alert("Proof generated!");
+    console.timeEnd("Server Membership Proof Generation");
   };
 
   const handleClientVerifyProof = async () => {
@@ -131,8 +124,20 @@ function App() {
       return;
     }
 
-    const zkp = JSON.parse(proof!);
-    const verified = await verifyMembership(zkp);
+    console.time("Build Poseidon");
+    const poseidon = cachePoseidon ? await buildPoseidon() : undefined;
+    console.timeEnd("Build Poseidon");
+
+    console.time("Client Membership Proof Verification");
+    const pubKeyPoints = publicKeys.map(publicKeyFromString);
+    const verified = await verifyMembership(
+      deserializeEcdsaMembershipProof(proof),
+      pubKeyPoints,
+      BigInt(nullifierRandomness),
+      undefined,
+      poseidon
+    );
+    console.timeEnd("Client Membership Proof Verification");
 
     alert(`Verified: ${verified}`);
   };
@@ -143,26 +148,27 @@ function App() {
       return;
     }
 
-    console.time("Verification");
-
-    const zkp = JSON.parse(proof!);
-
+    console.time("Server Membership Proof Verification");
     const response = await fetch("/api/verify", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ zkp }),
+      body: JSON.stringify({
+        proofString: proof,
+        publicKeys,
+        nullifierRandomness,
+        cachePoseidon,
+      }),
     });
     const json = await response.json();
     if (response.status === 200) {
       const verified = json.verified;
-
-      console.timeEnd("Verification");
+      console.timeEnd("Server Membership Proof Verification");
 
       alert(`Verified: ${verified}`);
     } else {
-      console.timeEnd("Verification");
+      console.timeEnd("Server Membership Proof Verification");
 
       if (json.error) {
         console.error(json.error);
@@ -173,6 +179,33 @@ function App() {
   return (
     <div className="App p-8 bg-gray-100 min-h-screen">
       <h1 className="text-2xl font-bold mb-6">BabyJubJub ECDSA Demo</h1>
+
+      <div className="mb-6">
+        <button
+          onClick={handleClientGenerateProof}
+          className="bg-green-500 text-white px-4 py-2 rounded mr-2"
+        >
+          Generate Proof (Client)
+        </button>
+        <button
+          onClick={handleBackendGenerateProof}
+          className="bg-green-500 text-white px-4 py-2 rounded mr-2"
+        >
+          Generate Proof (Backend)
+        </button>
+        <button
+          onClick={handleClientVerifyProof}
+          className="bg-yellow-500 text-white px-4 py-2 rounded mr-2"
+        >
+          Verify Proof (Client)
+        </button>
+        <button
+          onClick={handleBackendVerifyProof}
+          className="bg-yellow-500 text-white px-4 py-2 rounded mr-2"
+        >
+          Verify Proof (Backend)
+        </button>
+      </div>
 
       <div className="mb-6">
         <h2 className="text-xl mb-2">Add a new public key</h2>
@@ -212,56 +245,48 @@ function App() {
       <div>
         <h2 className="text-xl mb-2">Submit Proof</h2>
         <div className="mb-4">
+          <h6 className="text-sm mb-2">List Index</h6>
           <input
             value={index}
-            onChange={(e) => setIndex(e.target.value)}
+            type="number"
+            onChange={(e) => setIndex(Number(e.target.value))}
             placeholder="Enter list index"
             className="p-2 border rounded w-full mb-2"
           />
+          <h6 className="text-sm mb-2">Signature</h6>
           <input
             value={signature}
             onChange={(e) => setSignature(e.target.value)}
             placeholder="Enter signature"
             className="p-2 border rounded w-full mb-2"
           />
+          <h6 className="text-sm mb-2">Message Hash Hex String</h6>
           <input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Enter message"
-            className="p-2 border rounded w-full"
+            className="p-2 border rounded w-full mb-2"
           />
+          <h6 className="text-sm mb-2">Nullifier Randomness</h6>
+          <input
+            value={nullifierRandomness}
+            type="number"
+            onChange={(e) => setNullifierRandomness(Number(e.target.value))}
+            placeholder="Enter nullifier randomness"
+            className="p-2 border rounded w-full mb-2"
+          />
+          <h6 className="text-sm mb-2">Use Cached Poseidon Hash Function</h6>
+          <button
+            className="bg-white p-2 rounded border"
+            onClick={() => setCachePoseidon(!cachePoseidon)}
+          >
+            {cachePoseidon ? "Enabled" : "Disabled"}
+          </button>
         </div>
 
         <div className="mb-4">
           <h3 className="text-lg mb-2">Proof</h3>
           <div className="bg-white p-4 rounded border">{proof}</div>
-        </div>
-
-        <div>
-          <button
-            onClick={handleClientGenerateProof}
-            className="bg-green-500 text-white px-4 py-2 rounded mr-2"
-          >
-            Generate Proof (Client)
-          </button>
-          <button
-            onClick={handleBackendGenerateProof}
-            className="bg-green-500 text-white px-4 py-2 rounded mr-2"
-          >
-            Generate Proof (Backend)
-          </button>
-          <button
-            onClick={handleClientVerifyProof}
-            className="bg-yellow-500 text-white px-4 py-2 rounded mr-2"
-          >
-            Verify Proof (Client)
-          </button>
-          <button
-            onClick={handleBackendVerifyProof}
-            className="bg-yellow-500 text-white px-4 py-2 rounded mr-2"
-          >
-            Verify Proof (Backend)
-          </button>
         </div>
       </div>
     </div>

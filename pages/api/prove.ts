@@ -1,4 +1,12 @@
-import { derDecode, proveMembership } from "babyjubjub-ecdsa";
+// @ts-ignore
+import { buildPoseidonReference as buildPoseidon } from "circomlibjs";
+import {
+  derDecode,
+  hexToBigInt,
+  proveMembership,
+  publicKeyFromString,
+  serializeEcdsaMembershipProof,
+} from "babyjubjub-ecdsa";
 import { NextApiRequest, NextApiResponse } from "next";
 import path from "path";
 
@@ -7,22 +15,32 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    const { signature, index, message, publicKeys } = req.body;
+    const {
+      signature,
+      index,
+      message,
+      publicKeys,
+      nullifierRandomness,
+      cachePoseidon,
+    } = req.body;
 
     const sig = derDecode(signature);
-    const pubKeyIndex = Number(index);
-    const msgHash = BigInt(message);
+    const publicKeyPoints = publicKeys.map(publicKeyFromString);
+    const msgHash = hexToBigInt(message);
     const pathToCircuits = path.resolve(process.cwd(), "./public") + "/";
+    const poseidon = cachePoseidon ? await buildPoseidon() : undefined;
 
     const proof = await proveMembership(
       sig,
-      publicKeys,
-      pubKeyIndex,
+      publicKeyPoints,
+      index,
       msgHash,
-      pathToCircuits
+      BigInt(nullifierRandomness),
+      pathToCircuits,
+      poseidon
     );
 
-    res.status(200).json(proof);
+    res.status(200).json({ proof: serializeEcdsaMembershipProof(proof) });
   } catch (error) {
     console.error(error);
 

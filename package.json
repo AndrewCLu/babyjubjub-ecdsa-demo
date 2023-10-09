@@ -9,7 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "babyjubjub-ecdsa": "^1.0.6",
+    "babyjubjub-ecdsa": "^1.0.8",
+    "circomlibjs": "^0.1.7",
     "next": "13.5.4",
     "react": "^18",
     "react-dom": "^18"
