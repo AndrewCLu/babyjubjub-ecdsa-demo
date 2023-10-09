@@ -1,6 +1,7 @@
 // @ts-ignore
 import { buildPoseidonReference as buildPoseidon } from "circomlibjs";
 import {
+  batchVerifyMembership,
   deserializeEcdsaMembershipProof,
   publicKeyFromString,
   verifyMembership,
@@ -13,21 +14,32 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    const { proofString, publicKeys, nullifierRandomness, cachePoseidon } =
+    const { proofStrings, publicKeys, nullifierRandomness, cachePoseidon } =
       req.body;
 
-    const proof = deserializeEcdsaMembershipProof(proofString);
-    const publicKeyPoints = publicKeys.map(publicKeyFromString);
+    const proofs = proofStrings.map(deserializeEcdsaMembershipProof);
+    const pubKeyPoints = publicKeys.map(publicKeyFromString);
     const pathToCircuits = path.resolve(process.cwd(), "./public") + "/";
     const poseidon = cachePoseidon ? await buildPoseidon() : undefined;
 
-    const verified = await verifyMembership(
-      proof,
-      publicKeyPoints,
-      BigInt(nullifierRandomness),
-      pathToCircuits,
-      poseidon
-    );
+    let verified: boolean;
+    if (proofs.length === 1) {
+      verified = await verifyMembership(
+        proofs[0],
+        pubKeyPoints,
+        BigInt(nullifierRandomness),
+        pathToCircuits,
+        poseidon
+      );
+    } else {
+      verified = await batchVerifyMembership(
+        proofs,
+        pubKeyPoints,
+        BigInt(nullifierRandomness),
+        pathToCircuits,
+        poseidon
+      );
+    }
 
     res.status(200).json({ verified });
   } catch (error) {

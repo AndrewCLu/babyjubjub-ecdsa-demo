@@ -1,6 +1,7 @@
 // @ts-ignore
 import { buildPoseidonReference as buildPoseidon } from "circomlibjs";
 import {
+  batchProveMembership,
   derDecode,
   hexToBigInt,
   proveMembership,
@@ -16,31 +17,47 @@ export default async function handler(
 ) {
   try {
     const {
-      signature,
-      index,
-      message,
+      signatures,
+      indices,
+      messages,
       publicKeys,
       nullifierRandomness,
       cachePoseidon,
     } = req.body;
 
-    const sig = derDecode(signature);
-    const publicKeyPoints = publicKeys.map(publicKeyFromString);
-    const msgHash = hexToBigInt(message);
+    const sigs = signatures.map(derDecode);
+    const pubKeyPoints = publicKeys.map(publicKeyFromString);
+    const msgHashes = messages.map(hexToBigInt);
     const pathToCircuits = path.resolve(process.cwd(), "./public") + "/";
     const poseidon = cachePoseidon ? await buildPoseidon() : undefined;
 
-    const proof = await proveMembership(
-      sig,
-      publicKeyPoints,
-      index,
-      msgHash,
-      BigInt(nullifierRandomness),
-      pathToCircuits,
-      poseidon
-    );
+    if (sigs.length === 1) {
+      const proof = await proveMembership(
+        sigs[0],
+        pubKeyPoints,
+        indices[0],
+        msgHashes[0],
+        BigInt(nullifierRandomness),
+        pathToCircuits,
+        poseidon
+      );
 
-    res.status(200).json({ proof: serializeEcdsaMembershipProof(proof) });
+      res.status(200).json({ proofs: [serializeEcdsaMembershipProof(proof)] });
+    } else {
+      const proofs = await batchProveMembership(
+        sigs,
+        pubKeyPoints,
+        indices,
+        msgHashes,
+        BigInt(nullifierRandomness),
+        pathToCircuits,
+        poseidon
+      );
+
+      res
+        .status(200)
+        .json({ proofs: proofs.map(serializeEcdsaMembershipProof) });
+    }
   } catch (error) {
     console.error(error);
 
