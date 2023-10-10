@@ -6,7 +6,7 @@ import {
   hexToBigInt,
   proveMembership,
   publicKeyFromString,
-  serializeEcdsaMembershipProof,
+  serializeMembershipProof,
 } from "babyjubjub-ecdsa";
 import { NextApiRequest, NextApiResponse } from "next";
 import path from "path";
@@ -21,7 +21,8 @@ export default async function handler(
       indices,
       messages,
       publicKeys,
-      nullifierRandomness,
+      sigNullifierRandomness,
+      pubKeyNullifierRandomness,
       cachePoseidon,
     } = req.body;
 
@@ -32,31 +33,31 @@ export default async function handler(
     const poseidon = cachePoseidon ? await buildPoseidon() : undefined;
 
     if (sigs.length === 1) {
-      const proof = await proveMembership(
-        sigs[0],
-        pubKeyPoints,
-        indices[0],
-        msgHashes[0],
-        BigInt(nullifierRandomness),
+      const proof = await proveMembership({
+        sig: sigs[0],
+        pubKeys: pubKeyPoints,
+        index: indices[0],
+        msgHash: msgHashes[0],
+        sigNullifierRandomness: BigInt(sigNullifierRandomness),
+        pubKeyNullifierRandomness: BigInt(pubKeyNullifierRandomness),
         pathToCircuits,
-        poseidon
-      );
+        hashFn: poseidon,
+      });
 
-      res.status(200).json({ proofs: [serializeEcdsaMembershipProof(proof)] });
+      res.status(200).json({ proofs: [serializeMembershipProof(proof)] });
     } else {
-      const proofs = await batchProveMembership(
+      const proofs = await batchProveMembership({
         sigs,
-        pubKeyPoints,
+        pubKeys: pubKeyPoints,
         indices,
         msgHashes,
-        BigInt(nullifierRandomness),
+        sigNullifierRandomness: BigInt(sigNullifierRandomness),
+        pubKeyNullifierRandomness: BigInt(pubKeyNullifierRandomness),
         pathToCircuits,
-        poseidon
-      );
+        hashFn: poseidon,
+      });
 
-      res
-        .status(200)
-        .json({ proofs: proofs.map(serializeEcdsaMembershipProof) });
+      res.status(200).json({ proofs: proofs.map(serializeMembershipProof) });
     }
   } catch (error) {
     console.error(error);

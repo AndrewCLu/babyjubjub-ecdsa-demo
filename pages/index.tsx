@@ -7,11 +7,11 @@ import {
   batchProveMembership,
   batchVerifyMembership,
   derDecode,
-  deserializeEcdsaMembershipProof,
+  deserializeMembershipProof,
   hexToBigInt,
   proveMembership,
   publicKeyFromString,
-  serializeEcdsaMembershipProof,
+  serializeMembershipProof,
   verifyMembership,
   recoverPubKeyIndexFromSignature,
 } from "babyjubjub-ecdsa";
@@ -41,7 +41,10 @@ function App() {
     "abadbabeabadbabeabadbabeabadbabe",
   ]);
   const [newMessage, setNewMessage] = useState("");
-  const [nullifierRandomness, setNullifierRandomness] = useState<number>(0);
+  const [sigNullifierRandomness, setSigNullifierRandomness] =
+    useState<number>(0);
+  const [pubKeyNullifierRandomness, setPubKeyNullifierRandomness] =
+    useState<number>(0);
   const [cachePoseidon, setCachePoseidon] = useState<boolean>(false);
   const [proofs, setProofs] = useState<string[]>();
 
@@ -118,29 +121,29 @@ function App() {
     const indices = getIndicesFromSignatures();
 
     if (signatures.length === 1) {
-      const proof = await proveMembership(
-        sigs[0],
-        pubKeyPoints,
-        indices[0],
-        msgHashes[0],
-        BigInt(nullifierRandomness),
-        undefined,
-        poseidon
-      );
+      const proof = await proveMembership({
+        sig: sigs[0],
+        pubKeys: pubKeyPoints,
+        index: indices[0],
+        msgHash: msgHashes[0],
+        sigNullifierRandomness: BigInt(sigNullifierRandomness),
+        pubKeyNullifierRandomness: BigInt(pubKeyNullifierRandomness),
+        hashFn: poseidon,
+      });
 
-      setProofs([serializeEcdsaMembershipProof(proof)]);
+      setProofs([serializeMembershipProof(proof)]);
     } else {
-      const proofs = await batchProveMembership(
+      const proofs = await batchProveMembership({
         sigs,
-        pubKeyPoints,
+        pubKeys: pubKeyPoints,
         indices,
         msgHashes,
-        BigInt(nullifierRandomness),
-        undefined,
-        poseidon
-      );
+        sigNullifierRandomness: BigInt(sigNullifierRandomness),
+        pubKeyNullifierRandomness: BigInt(pubKeyNullifierRandomness),
+        hashFn: poseidon,
+      });
 
-      setProofs(proofs.map(serializeEcdsaMembershipProof));
+      setProofs(proofs.map(serializeMembershipProof));
     }
     console.timeEnd("Client Membership Proof Generation");
   };
@@ -175,7 +178,8 @@ function App() {
         indices,
         messages,
         publicKeys,
-        nullifierRandomness,
+        sigNullifierRandomness,
+        pubKeyNullifierRandomness,
         cachePoseidon,
       }),
     });
@@ -204,21 +208,19 @@ function App() {
     const pubKeyPoints = publicKeys.map(publicKeyFromString);
     let verified: boolean;
     if (proofs.length === 1) {
-      verified = await verifyMembership(
-        deserializeEcdsaMembershipProof(proofs[0]),
-        pubKeyPoints,
-        BigInt(nullifierRandomness),
-        undefined,
-        poseidon
-      );
+      verified = await verifyMembership({
+        proof: deserializeMembershipProof(proofs[0]),
+        pubKeys: pubKeyPoints,
+        sigNullifierRandomness: BigInt(sigNullifierRandomness),
+        hashFn: poseidon,
+      });
     } else {
-      verified = await batchVerifyMembership(
-        proofs.map(deserializeEcdsaMembershipProof),
-        pubKeyPoints,
-        BigInt(nullifierRandomness),
-        undefined,
-        poseidon
-      );
+      verified = await batchVerifyMembership({
+        proofs: proofs.map(deserializeMembershipProof),
+        pubKeys: pubKeyPoints,
+        sigNullifierRandomness: BigInt(sigNullifierRandomness),
+        hashFn: poseidon,
+      });
     }
     console.timeEnd("Client Membership Proof Verification");
 
@@ -240,7 +242,7 @@ function App() {
       body: JSON.stringify({
         proofStrings: proofs,
         publicKeys,
-        nullifierRandomness,
+        sigNullifierRandomness,
         cachePoseidon,
       }),
     });
@@ -398,12 +400,22 @@ function App() {
       <div>
         <h2 className="text-xl mb-2">Proof Options</h2>
         <div className="mb-4">
-          <h6 className="text-sm mb-2">Nullifier Randomness</h6>
+          <h6 className="text-sm mb-2">Signature Nullifier Randomness</h6>
           <input
-            value={nullifierRandomness}
+            value={sigNullifierRandomness}
             type="number"
-            onChange={(e) => setNullifierRandomness(Number(e.target.value))}
-            placeholder="Enter nullifier randomness"
+            onChange={(e) => setSigNullifierRandomness(Number(e.target.value))}
+            placeholder="Enter sig nullifier randomness"
+            className="p-2 border rounded w-full mb-2"
+          />
+          <h6 className="text-sm mb-2">Public Key Nullifier Randomness</h6>
+          <input
+            value={pubKeyNullifierRandomness}
+            type="number"
+            onChange={(e) =>
+              setPubKeyNullifierRandomness(Number(e.target.value))
+            }
+            placeholder="Enter pub key randomness"
             className="p-2 border rounded w-full mb-2"
           />
           <h6 className="text-sm mb-2">Use Cached Poseidon Hash Function</h6>

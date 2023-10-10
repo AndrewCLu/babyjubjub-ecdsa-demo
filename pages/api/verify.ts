@@ -2,7 +2,7 @@
 import { buildPoseidonReference as buildPoseidon } from "circomlibjs";
 import {
   batchVerifyMembership,
-  deserializeEcdsaMembershipProof,
+  deserializeMembershipProof,
   publicKeyFromString,
   verifyMembership,
 } from "babyjubjub-ecdsa";
@@ -14,31 +14,31 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    const { proofStrings, publicKeys, nullifierRandomness, cachePoseidon } =
+    const { proofStrings, publicKeys, sigNullifierRandomness, cachePoseidon } =
       req.body;
 
-    const proofs = proofStrings.map(deserializeEcdsaMembershipProof);
+    const proofs = proofStrings.map(deserializeMembershipProof);
     const pubKeyPoints = publicKeys.map(publicKeyFromString);
     const pathToCircuits = path.resolve(process.cwd(), "./public") + "/";
     const poseidon = cachePoseidon ? await buildPoseidon() : undefined;
 
     let verified: boolean;
     if (proofs.length === 1) {
-      verified = await verifyMembership(
-        proofs[0],
-        pubKeyPoints,
-        BigInt(nullifierRandomness),
+      verified = await verifyMembership({
+        proof: proofs[0],
+        pubKeys: pubKeyPoints,
+        sigNullifierRandomness: BigInt(sigNullifierRandomness),
         pathToCircuits,
-        poseidon
-      );
+        hashFn: poseidon,
+      });
     } else {
-      verified = await batchVerifyMembership(
+      verified = await batchVerifyMembership({
         proofs,
-        pubKeyPoints,
-        BigInt(nullifierRandomness),
+        pubKeys: pubKeyPoints,
+        sigNullifierRandomness: BigInt(sigNullifierRandomness),
         pathToCircuits,
-        poseidon
-      );
+        hashFn: poseidon,
+      });
     }
 
     res.status(200).json({ verified });
